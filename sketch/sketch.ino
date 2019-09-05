@@ -376,15 +376,15 @@ void loop() {
     }
     Serial.printf("UDP packet contents: %s\n", incomingPacket);
 
-    if(strstr(incomingPacket,"LedOn"))
+    if(incomingPacket == strstr(incomingPacket,"LedOn"))
     {
       LedNotification = 1;
     }
-    else if(strstr(incomingPacket,"LedOff"))
+    else if(incomingPacket == strstr(incomingPacket,"LedOff"))
     {
       LedNotification = 0;
     }
-    else if(strstr(incomingPacket,"UpdateTime"))
+    else if(incomingPacket == strstr(incomingPacket,"UpdateTime"))
     {
       time_t SetNow = 0;
       char* PointerData = &incomingPacket[0] + 11;
@@ -405,7 +405,7 @@ void loop() {
       strftime (buffer,80,"%D %I:%M:%S %p",timeinfo);
       Serial.println(buffer);
     }
-    else if(strstr(incomingPacket,"SetNextNotification"))
+    else if(incomingPacket == strstr(incomingPacket,"SetNextNotification"))
     {
       char* PointerData = &incomingPacket[0] + 20;
       time_t SetNow = 0;
@@ -432,6 +432,9 @@ void loop() {
           time_t CurrentTime = atol((const char*)&line);
           if(CurrentTime == SetNow || SetNow < now) FlagNoWrite = 1;
         }
+
+        if(SetNow < now) FlagNoWrite = 1;
+        
         if(FlagNoWrite == 0)f.println(&incomingPacket[20]);
         f.close();
         
@@ -463,7 +466,7 @@ void loop() {
       f.println(incomingPacket);
       f.close();
     }
-    else if(strstr(incomingPacket,"updateStruct"))
+    else if(incomingPacket == strstr(incomingPacket,"updateStruct"))
     {
       char* PointerStruct = &incomingPacket[0] + 13;
 
@@ -507,7 +510,7 @@ void loop() {
       Serial.println(line);
       f.close();
     }
-    else if(strstr(incomingPacket,"UpdateEvents"))
+    else if(incomingPacket == strstr(incomingPacket,"UpdateEvents"))
     {
       // this opens the file "f.txt" in read-mode
       File f = SPIFFS.open("/Journal.txt", "r");
@@ -517,10 +520,13 @@ void loop() {
         // we could open the file
         while(f.available()) {
           //Lets read line by line from the file
+          char lineChar[100];
           String line = f.readStringUntil('\n');
-          int lengthLine = (int)((const char*)&line - strstr((const char*)&line,"\n"));
           Serial.println(line);
-          Udp.write((char*)&line,strlen((char*)&line));
+          line.toCharArray(lineChar,line.length()+2);
+          lineChar[line.length()+1] = '\n';
+          lineChar[line.length()+2] = '\0';
+          Udp.write(lineChar,line.length()+2);
         }
         Udp.endPacket();
       }
@@ -530,7 +536,7 @@ void loop() {
       SPIFFS.remove("/Journal.txt");
       Serial.println("remove file Journal.txt");
     }
-    else if(strstr(incomingPacket,"OpenCase"))
+    else if(incomingPacket == strstr(incomingPacket,"OpenCase"))
     {
       FlagOpenCase = 1;
     }
@@ -540,7 +546,7 @@ void loop() {
     }
 
     // send back a reply, to the IP address and port we got the packet from
-//    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+    Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
 //    char Str[(sizeof(s_SettigsDoseIO) * 2) + 1] = {0};
 //    SettigsDoseIO.FreqOfTakingThePill = 5;
 //    SettigsDoseIO.SoundNotification = 1;
@@ -551,8 +557,9 @@ void loop() {
 //      sprintf(&Str[i*2],"%x",((uint8_t*)(&SettigsDoseIO.All))[i]);
 //    }
 ////    sprintf(Str,"%x",SettigsDoseIO.All);
-//    Udp.write(Str,sizeof(s_SettigsDoseIO) * 2);
-//    Udp.endPacket();
+    Udp.write("Echo:");
+    Udp.write(incomingPacket,len);
+    Udp.endPacket();
   }
 
   now = time(nullptr);
