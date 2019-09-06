@@ -15,6 +15,10 @@ MDNSResponder mdns;
 #define LENGTH_PATH_MAX 10
 #define SBUFF_COUNT_MAX 128
 
+#define RED_LED 5
+#define GREEN_LED 4
+#define SwithPin 12
+
 #define TZ              1       // (utc+) TZ in hours
 #define DST_MN          60      // use 60mn for summer time in some countries
 
@@ -41,6 +45,7 @@ int SoundNotification = 0;
 int FlagNotificationAlarm = 0;
 int FlagOpenCase = 0;
 time_t NextNotification = 0;
+int CurrentSwith = 0;
 
 // Create an instance of the server
 // specify the port to listen on as an argument
@@ -290,14 +295,25 @@ void changeState()
 {
   if(LedNotification)
   {
-    digitalWrite(LED_BUILTIN, !(digitalRead(LED_BUILTIN)));  //Invert Current State of LED_BUILTIN  
+//    digitalWrite(LED_BUILTIN, !(digitalRead(LED_BUILTIN)));  //Invert Current State of LED_BUILTIN  
+    digitalWrite(RED_LED, !(digitalRead(RED_LED)));  //Invert Current State of LED_BUILTIN  
+    digitalWrite(GREEN_LED, !(digitalRead(RED_LED)));  //Invert Current State of LED_BUILTIN  
   }
 }
 
 void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
-  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+  
+  pinMode(GREEN_LED,OUTPUT); 
+  pinMode(RED_LED,OUTPUT); 
+
+  pinMode(SwithPin,INPUT); 
+  
+  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH 
+  
+  digitalWrite(GREEN_LED, HIGH);
+  digitalWrite(RED_LED, LOW);
 
   time_t rtc = RTC_TEST;
   timeval tv = { rtc, 0 };
@@ -623,6 +639,18 @@ void loop() {
     LedNotification = 1;
  }
 
+  if(digitalRead(SwithPin) == HIGH)
+ {
+  if(CurrentSwith = LOW) FlagOpenCase = 1;
+  CurrentSwith = HIGH;
+  digitalWrite(LED_BUILTIN, HIGH);  //Invert Current State of LED_BUILTIN 
+ }
+ else
+ {
+  CurrentSwith = LOW;
+  digitalWrite(LED_BUILTIN, LOW);  //Invert Current State of LED_BUILTIN 
+ }
+
  if(FlagOpenCase)
  {
     FlagNotificationAlarm = 0;
@@ -675,7 +703,23 @@ void loop() {
 
     f_copy.close();
     SPIFFS.remove("/NextNotification_copy.txt");
+
+    f = SPIFFS.open("/Journal.txt", "a+");
+    if (!f) {
+      Serial.println("file creation failed");
+    }
+
+    timeinfo = localtime(&now);
+  
+    char buffer[80];
+    strftime (buffer,80,"%D %I:%M:%S %p|",timeinfo);
+    f.print(buffer);
+    
+    // now write two lines in key/value style with  end-of-line characters
+    f.println("Open Case");
+    f.close();
  }
+
 // if(Serial.available()>0)
 // {
 //      size_t len = Serial.available();
