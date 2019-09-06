@@ -15,8 +15,8 @@ MDNSResponder mdns;
 #define LENGTH_PATH_MAX 10
 #define SBUFF_COUNT_MAX 128
 
-#define RED_LED 5
-#define GREEN_LED 4
+#define RED_LED 4
+#define GREEN_LED 5
 #define SwithPin 12
 
 #define TZ              1       // (utc+) TZ in hours
@@ -45,6 +45,7 @@ int SoundNotification = 0;
 int FlagNotificationAlarm = 0;
 int FlagOpenCase = 0;
 time_t NextNotification = 0;
+time_t NextNotification_last = 0;
 int CurrentSwith = 0;
 
 // Create an instance of the server
@@ -150,23 +151,23 @@ void HTML_WIFI()
                 </head>\n\
                 <body>\n\
                   <ul id=\"navbar\">\n\
-                    <li><a href=\"http://"+host+"/index\">Р вЂњР В»Р В°Р Р†Р Р…Р В°РЎРЏ</a></li>\n\
-                    <li><a href=\"http://"+host+"/graph\">Р вЂњРЎР‚Р В°РЎвЂћР С‘Р С”Р С‘</a></li>\n\
-                    <li><a href=\"#3\">Р СћР В°Р В±Р В»Р С‘РЎвЂ Р В°</a>\n\
+                    <li><a href=\"http://"+host+"/index\">Главная</a></li>\n\
+                    <li><a href=\"http://"+host+"/graph\">Графики</a></li>\n\
+                    <li><a href=\"#3\">Таблица</a>\n\
                       <ul>\n\
-                        <li><a href=\"http://"+host+"/table\">Р СћР ВµР С”РЎС“РЎвЂ°Р С‘Р в„–</a></li>\n\
-                        <li><a href=\"#32\">Р СћР ВµР В»Р ВµРЎвЂћР С•Р Р…</a></li>\n\
+                        <li><a href=\"http://"+host+"/table\">Текущий</a></li>\n\
+                        <li><a href=\"#32\">Телефон</a></li>\n\
                         <li><a href=\"#33\">Email</a></li>\n\
                       </ul>\n\
                     </li>\n\
                     <li><a href=\"http://"+host+"/wifi\">WIFI</a></li>\n\
                   </ul>\n\
                    <form action=\"reconnect\">\n\
-                    <p><strong>Р СњР В°Р В·Р Р†Р В°Р Р…Р С‘Р Вµ WIFI РЎРѓР ВµРЎвЂљР С‘:</strong>\n\ 
+                    <p><strong>Название WIFI сети:</strong>\n\ 
                     <input maxlength=\"25\" size=\"40\" name=\"login\"></p>\n\
-                    <p><strong>Р СџР В°РЎР‚Р С•Р В»РЎРЉ:</strong>\n\ 
+                    <p><strong>Пароль:</strong>\n\ 
                     <input type=\"password\" maxlength=\"25\" size=\"40\" name=\"password\"></p>\n\
-                    <input type=\"submit\" name=\"submit\" value=\"Р СџР С•Р Т‘Р С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉРЎРѓРЎРЏ\">\n\
+                    <input type=\"submit\" name=\"submit\" value=\"Подключиться\">\n\
                   </form>\n\
                 </body>\n\
             </html>";
@@ -312,7 +313,7 @@ void setup() {
   
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH 
   
-  digitalWrite(GREEN_LED, HIGH);
+  digitalWrite(GREEN_LED, LOW);
   digitalWrite(RED_LED, LOW);
 
   time_t rtc = RTC_TEST;
@@ -351,8 +352,8 @@ void setup() {
   WIFI_SET_AP();
 
   server.on("/index", HTTP_GET, HTML_INDEX);
-  server.on("/wifi", HTTP_GET, HTML_WIFI);
-  server.on("/reconnect", HTTP_GET, Reconnect);
+//  server.on("/wifi", HTTP_GET, HTML_WIFI);
+//  server.on("/reconnect", HTTP_GET, Reconnect);
   server.on("/ledon", HTTP_GET, [](){
     digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
   });
@@ -371,7 +372,24 @@ void setup() {
    // Start the server
 //  server.begin();
 
-blinker.attach(0.5, changeState);
+  blinker.attach(0.25, changeState);
+
+//  File f_copy = SPIFFS.open("/auth.txt", "w+");
+//  if (f_copy) {
+//    while(f_copy.available()) {
+//      //Lets read line by line from the file
+//      String line = f_copy.readStringUntil('\n');
+//      if(line)
+//      {
+//        time_t CurrentTime = atol((const char*)&line);
+//        char lineChar[100];
+//        if(NextNotification <= 1 || NextNotification > CurrentTime) NextNotification = CurrentTime;
+//        sprintf(lineChar,"%lld", (long long int)CurrentTime);
+//        f.println(lineChar);
+//        Serial.println(lineChar);
+//      }
+//    }
+//    f.close();
 }
 
 void loop() {
@@ -399,6 +417,8 @@ void loop() {
     else if(incomingPacket == strstr(incomingPacket,"LedOff"))
     {
       LedNotification = 0;
+      digitalWrite(RED_LED, LOW);  //Invert Current State of LED_BUILTIN  
+      digitalWrite(GREEN_LED, LOW);  //Invert Current State of LED_BUILTIN  
     }
     else if(incomingPacket == strstr(incomingPacket,"UpdateTime"))
     {
@@ -434,7 +454,7 @@ void loop() {
       if(SetNow)
       {
         int FlagNoWrite = 0;
-        if(SetNow > now && (SetNow < NextNotification || NextNotification < 1))
+        if(SetNow > now && ((SetNow < NextNotification && NextNotification > 1) || NextNotification <= 1))
         {
           NextNotification = SetNow;
         }
@@ -539,9 +559,9 @@ void loop() {
           char lineChar[100];
           String line = f.readStringUntil('\n');
           Serial.println(line);
-          line.toCharArray(lineChar,line.length()+2);
-          lineChar[line.length()+1] = '\n';
-          lineChar[line.length()+2] = '\0';
+          line.toCharArray(lineChar,line.length());
+          lineChar[line.length()] = '\n';
+          lineChar[line.length()+1] = '\0';
           Udp.write(lineChar,line.length()+2);
         }
         Udp.endPacket();
@@ -641,84 +661,100 @@ void loop() {
 
   if(digitalRead(SwithPin) == HIGH)
  {
-  if(CurrentSwith = LOW) FlagOpenCase = 1;
+  if(CurrentSwith == LOW) FlagOpenCase = 1;
   CurrentSwith = HIGH;
-  digitalWrite(LED_BUILTIN, HIGH);  //Invert Current State of LED_BUILTIN 
+  digitalWrite(LED_BUILTIN, LOW);  //Invert Current State of LED_BUILTIN 
  }
  else
  {
   CurrentSwith = LOW;
-  digitalWrite(LED_BUILTIN, LOW);  //Invert Current State of LED_BUILTIN 
+  digitalWrite(LED_BUILTIN, HIGH);  //Invert Current State of LED_BUILTIN 
  }
 
  if(FlagOpenCase)
  {
-    FlagNotificationAlarm = 0;
-    LedNotification = 0;
-    SoundNotification = 0;
-    NextNotification = 1;
-    FlagOpenCase = 0;
-    digitalWrite(LED_BUILTIN, HIGH);
-
-    File f = SPIFFS.open("/NextNotification.txt", "r");
-    
-    if (f) {
-      File f_copy = SPIFFS.open("/NextNotification_copy.txt", "w");
+    if(FlagNotificationAlarm == 1)
+    {
+      File f = SPIFFS.open("/NextNotification.txt", "r");
+      
+      if (f) {
+        File f_copy = SPIFFS.open("/NextNotification_copy.txt", "w");
+        if (f_copy) {
+          Serial.println("/NextNotification_copy.txt");
+          while(f.available()) {
+            //Lets read line by line from the file
+            String line = f.readStringUntil('\n');
+            if(line)
+            {
+              time_t CurrentTime = atol((const char*)&line);
+              if(CurrentTime != NextNotification && CurrentTime > now)
+              {
+                char lineChar[100];
+                sprintf(lineChar,"%lld", (long long int)CurrentTime);
+                f_copy.println(lineChar);
+                Serial.println(lineChar);
+              }
+            }
+          }
+          f.close();
+          SPIFFS.remove("/NextNotification.txt");
+        }
+        f_copy.close();
+      }
+  
+      NextNotification = 0;
+  
+      File f_copy = SPIFFS.open("/NextNotification_copy.txt", "r");
       if (f_copy) {
-        while(f.available()) {
+        f = SPIFFS.open("/NextNotification.txt", "w");
+        Serial.println("/NextNotification.txt");
+        while(f_copy.available()) {
           //Lets read line by line from the file
-          String line = f.readStringUntil('\n');
+          String line = f_copy.readStringUntil('\n');
           if(line)
           {
             time_t CurrentTime = atol((const char*)&line);
-            if(CurrentTime != NextNotification && CurrentTime > now)
-            {
-              f_copy.println(CurrentTime);
-            }
+            char lineChar[100];
+            if(NextNotification <= 1 || NextNotification > CurrentTime) NextNotification = CurrentTime;
+            sprintf(lineChar,"%lld", (long long int)CurrentTime);
+            f.println(lineChar);
+            Serial.println(lineChar);
           }
         }
         f.close();
-        SPIFFS.remove("/NextNotification.txt");
       }
-      f_copy.close();
-    }
-
-    NextNotification = 0;
-
-    File f_copy = SPIFFS.open("/NextNotification_copy.txt", "r");
-    if (f_copy) {
-      f = SPIFFS.open("/NextNotification.txt", "w");
-      while(f_copy.available()) {
-        //Lets read line by line from the file
-        String line = f_copy.readStringUntil('\n');
-        if(line)
-        {
-          time_t CurrentTime = atol((const char*)&line);
-          if(NextNotification <= 1 || NextNotification > CurrentTime) NextNotification = CurrentTime;
-        }
-        f.println(line);
-      }
-      f.close();
-    }
-
-    f_copy.close();
-    SPIFFS.remove("/NextNotification_copy.txt");
-
-    f = SPIFFS.open("/Journal.txt", "a+");
-    if (!f) {
-      Serial.println("file creation failed");
-    }
-
-    timeinfo = localtime(&now);
   
-    char buffer[80];
-    strftime (buffer,80,"%D %I:%M:%S %p|",timeinfo);
-    f.print(buffer);
-    
-    // now write two lines in key/value style with  end-of-line characters
-    f.println("Open Case");
+      f_copy.close();
+      SPIFFS.remove("/NextNotification_copy.txt");
+      
+      FlagNotificationAlarm = 0;
+      LedNotification = 0;
+      SoundNotification = 0;
+      if(NextNotification == 0)NextNotification = 1;
+
+      digitalWrite(RED_LED, LOW);
+      digitalWrite(GREEN_LED, LOW);
+    }
+
+    File f = SPIFFS.open("/Journal.txt", "a+");
+    if (f) {
+      char buffer[80];
+      timeinfo = localtime(&now);
+      strftime (buffer,80,"%D %I:%M:%S %p|",timeinfo);
+      f.print(buffer);
+      f.println("Open Case");
+    }
     f.close();
+    
+    FlagOpenCase = 0;
  }
+
+  if(NextNotification_last != NextNotification)
+  {
+    NextNotification_last = NextNotification;
+    Serial.print("NextNotification = ");
+    Serial.println(NextNotification);
+  }
 
 // if(Serial.available()>0)
 // {
