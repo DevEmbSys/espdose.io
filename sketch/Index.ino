@@ -1,8 +1,8 @@
 void HTML_INDEX()
 {
-   if (!server.authenticate(www_username, www_password)) {
-      return server.requestAuthentication();
-    }
+//   if (!server.authenticate(www_username, www_password)) {
+//      return server.requestAuthentication();
+//    }
   String Str = "<!DOCTYPE html>\n\
               <html>\n\
                 <head>\n\
