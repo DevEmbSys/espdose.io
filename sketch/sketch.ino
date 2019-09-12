@@ -742,7 +742,7 @@ void loop() {
       timeinfo = localtime(&now);
       strftime (buffer,80,"%D %I:%M:%S %p|",timeinfo);
       f.print(buffer);
-      f.println("Open Case");
+      f.println("OpenCase");
     }
     f.close();
     
