@@ -576,6 +576,109 @@ void loop() {
     {
       FlagOpenCase = 1;
     }
+    else if(incomingPacket == strstr(incomingPacket,"DelAllNotification"))
+    {
+      SPIFFS.remove("/NextNotification.txt");
+      Serial.println("remove file Journal.txt");
+      NextNotification = 1;
+    }
+    else if(incomingPacket == strstr(incomingPacket,"DelNotification"))
+    {
+      char* PointerData = &incomingPacket[0] + 16;
+      time_t DelNotif = 0;
+
+      DelNotif = atol((const char*)&incomingPacket[16]);
+
+      Serial.print("DelNotif = ");
+      Serial.println(DelNotif);
+
+      NextNotification = 0;
+
+      if(DelNotif)
+      {
+        File f = SPIFFS.open("/NextNotification.txt", "r");
+        
+        if (f) {
+          File f_copy = SPIFFS.open("/NextNotification_copy.txt", "w");
+          if (f_copy) {
+            Serial.println("/NextNotification_copy.txt");
+            while(f.available()) {
+              //Lets read line by line from the file
+              String line = f.readStringUntil('\n');
+              if(line)
+              {
+                time_t CurrentTime = atol((const char*)&line);
+                if(CurrentTime != DelNotif)
+                {
+                  char lineChar[100];
+                  sprintf(lineChar,"%lld", (long long int)CurrentTime);
+                  f_copy.println(lineChar);
+                  Serial.println(lineChar);
+
+                  if(CurrentTime > now && CurrentTime < NextNotification) NextNotification = CurrentTime;
+                }
+              }
+            }
+            f.close();
+            SPIFFS.remove("/NextNotification.txt");
+          }
+          f_copy.close();
+        }
+    
+        File f_copy = SPIFFS.open("/NextNotification_copy.txt", "r");
+        if (f_copy) {
+          f = SPIFFS.open("/NextNotification.txt", "w");
+          Serial.println("/NextNotification.txt");
+          while(f_copy.available()) {
+            //Lets read line by line from the file
+            String line = f_copy.readStringUntil('\n');
+            if(line)
+            {
+              time_t CurrentTime = atol((const char*)&line);
+              char lineChar[100];
+              if(NextNotification <= 1 || NextNotification > CurrentTime) NextNotification = CurrentTime;
+              sprintf(lineChar,"%lld", (long long int)CurrentTime);
+              f.println(lineChar);
+              Serial.println(lineChar);
+            }
+          }
+          f.close();
+        }
+    
+        f_copy.close();
+        SPIFFS.remove("/NextNotification_copy.txt");
+      }
+    }
+    else if(incomingPacket == strstr(incomingPacket,"ReadAllNotification"))
+    {
+      // this opens the file "f.txt" in read-mode
+      File f = SPIFFS.open("/NextNotification.txt", "r");
+      
+      if (f) {
+        Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+        // we could open the file
+        while(f.available()) {
+          //Lets read line by line from the file
+          char lineChar[100];
+          String line = f.readStringUntil('\n');
+          Serial.println(line);
+          sprintf(lineChar,"%s\n",&line);
+          Udp.write(lineChar,strlen(lineChar));
+        }
+        Udp.endPacket();
+      }
+
+      f.close();
+    }
+    else if(incomingPacket == strstr(incomingPacket,"ReadNextNotification"))
+    {
+      Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+      char lineChar[100];
+      sprintf(lineChar, "%lld",NextNotification);
+      Udp.write(lineChar,strlen(lineChar));
+      Udp.endPacket();
+      Serial.println(lineChar);
+    }
     else
     {
       Serial.println("-------No Parse Packet-------");
